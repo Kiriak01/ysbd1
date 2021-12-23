@@ -22,8 +22,8 @@ int fileCounter = 0;
 }                            \
 
 char * convert(int i) {             //calculate binary number
-      static char bits[16] = {'0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0'};
-      int bits_index = 15;                                                                
+      static char bits[10] = {'0','0','0','0','0','0','0','0','0','0'};
+      int bits_index = 10;                                                                
       while ( i > 0 ) {
          bits[bits_index--] = (i & 1) + '0';
          i = ( i >> 1);
@@ -32,26 +32,26 @@ char * convert(int i) {             //calculate binary number
       
    }
 char * hash_func(int i,int globald) {    //calculate binary number i and return number of globald first bits
-      static char bits[16] = {'0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0'};
-      int bits_index = 15;
+      static char bits[10] = {'0','0','0','0','0','0','0','0','0','0'};
+      int bits_index = 10;
       while ( i > 0 ) {
          bits[bits_index--] = (i & 1) + '0';
          i = ( i >> 1);
       }
-      static char sigbits[16];
+      static char sigbits[10];
       strncpy(sigbits,bits,globald);
       return sigbits;
    } 
 
 char * hash_index(int i,int globald) {     //calculate binary  number i and return number of globald last bits 
-      static char bits[16] = {'0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0'};
-      int bits_index = 15;
+      static char bits[10] = {'0','0','0','0','0','0','0','0','0','0'};
+      int bits_index = 10;
       while ( i > 0 ) {
          bits[bits_index--] = (i & 1) + '0';                               
          i = ( i >> 1);
       } 
-      static char sigbits[16];
-      strncpy(sigbits,&bits[16-globald],globald);
+      static char sigbits[10];
+      strncpy(sigbits,&bits[10-globald],globald);
       return sigbits;
    }
 
@@ -167,7 +167,7 @@ void redirect(int indexDesc, int first_block, int global_depth) {             //
       BF_GetBlock(indexDesc, first_directory, b);
       data = BF_Block_GetData(b);
       memcpy(new_directory_index, data, sizeof(new_directory_index));
-      if(strcmp(new_record_index, new_directory_index)){
+      if(strcmp(new_record_index, new_directory_index)==0){
         memcpy(&block_pointer, data+sizeof(int), sizeof(int));
         BF_GetBlock(indexDesc, block_pointer, b);
         data = BF_Block_GetData(b);
@@ -296,58 +296,63 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
     char val[16]; 
     memcpy(val,temp,sizeof(char*));                     // put in val the hashing index of the directory index
     strcpy(hashid,hash_func(record.id,gd));                   
-    if(strcmp(hashid,val)){                                 //if directory index==hash_func(record.id) then take block number of the directory index and insert record
+    if(strcmp(hashid,val)==0){                                 //if directory index==hash_func(record.id) then take block number of the directory index and insert record
+      //printf("val is %s id is %s \n", val, hashid);
       int blockpointer;
       memcpy(&blockpointer,temp+sizeof(val),sizeof(int));       //domh dire char (00,01,klp) meta ena int pou deixnei se kapoio block,kai meta ena int poy deixnei sto epomeno directory
       int blockk;
       BF_GetBlock(indexDesc,blockpointer,b);
-      char * temp = BF_Block_GetData(b); 
-      memcpy(&dir_num,temp,sizeof(int));
+      //char * temp = BF_Block_GetData(b); 
+      //memcpy(&dir_num,temp,sizeof(int));
       totalrecordsinbucket=counter(b);                                          //call counter and put total records in bucket 
-      if(totalrecordsinbucket<utilization){                                                         //if we dont have overflow we insert the record
+      if(totalrecordsinbucket<=utilization){                                                       //if we dont have overflow we insert the record
+        printf("total %d\n", totalrecordsinbucket);
         data=BF_Block_GetData(b);
         memcpy(data+sizeof(int) +((totalrecordsinbucket+1)*sizeof(Record)),&record,sizeof(Record));   //we insert the record in  bucket 
+        printf("eeeeee\n");
         increaseBlockcnt(b);                              //increase the number of records in bucket
       }
-    }
-    else{
-      int blockpointer;                                                           //case where local depth == global depth => expand directory, split bucket, gd++, ld++
-      memcpy(&blockpointer,temp+sizeof(val),sizeof(int));
-      data=BF_Block_GetData(b);
-      memcpy(&localdepth,data,sizeof(int));                                                            //edw ginetai overflow tou bucket
-      if(localdepth==gd){                  
-        BF_GetBlock(indexDesc,bgd,b);
-        d=BF_Block_GetData(b);
-        gd++;                                                                         //increase global depth
-        memcpy(d,&gd,sizeof(int));
-        rehashing(indexDesc,gd,bgd+1);                                                //rehashing the directory indexes 
-        BF_GetBlock(indexDesc,blockpointer,b);
-        d=BF_Block_GetData(b);
-        localdepth++;                                                                 //increase local depth of the bucket 
-        memcpy(d,&localdepth,sizeof(int));
-        freeblock=findfreeblock(indexDesc,bgd);                                           //find the next bucket we initialise after split for records
-        BF_GetBlock(indexDesc,freeblock,b);
-        d=BF_Block_GetData(b);
-        memcpy(d,&localdepth,sizeof(int));                                              //define local depth for the new bucket
-        redirect(indexDesc, bgd, gd);}                                                        //call redirect for rehashing  the directory indexes 
-      else{                                                                             //case where global depth > local depth => split bucket, ld++
-        int blockpointer;
-        memcpy(&blockpointer,temp+sizeof(val),sizeof(int));                                                       //edw ginetai overflow tou bucket                 
-        BF_GetBlock(indexDesc,bgd,b);
-        d=BF_Block_GetData(b);
-        gd++;
-        memcpy(d,&gd,sizeof(int));
-        BF_GetBlock(indexDesc,blockpointer,b);
-        d=BF_Block_GetData(b);
-        localdepth++;
-        memcpy(d,&localdepth,sizeof(int));
-        freeblock=findfreeblock(indexDesc,bgd);
-        BF_GetBlock(indexDesc,freeblock,b);
-        d=BF_Block_GetData(b);
-        memcpy(d,&localdepth,sizeof(int));
-        redirect(indexDesc, bgd, gd);
+      else{   //case where local depth == global depth => expand directory, split bucket, gd++, ld++
+        data=BF_Block_GetData(b);
+        memcpy(&localdepth,data,sizeof(int));                                                           //edw ginetai overflow tou bucket
+        printf("local is %d", localdepth);
+        if(localdepth==gd){                  
+          BF_GetBlock(indexDesc,bgd,b);
+          d=BF_Block_GetData(b);
+          gd++;                                                                         //increase global depth
+          memcpy(d,&gd,sizeof(int));
+          rehashing(indexDesc,gd,bgd+1);                                                //rehashing the directory indexes 
+          BF_GetBlock(indexDesc,blockpointer,b);
+          d=BF_Block_GetData(b);
+          localdepth++;                                                                 //increase local depth of the bucket 
+          memcpy(d,&localdepth,sizeof(int));
+          freeblock=findfreeblock(indexDesc,bgd);                                           //find the next bucket we initialise after split for records
+          BF_GetBlock(indexDesc,freeblock,b);
+          d=BF_Block_GetData(b);
+          memcpy(d,&localdepth,sizeof(int));                                              //define local depth for the new bucket
+          redirect(indexDesc, bgd, gd);}                                                        //call redirect for rehashing  the directory indexes 
+        else{                                                                             //case where global depth > local depth => split bucket, ld++
+          int blockpointer;
+          memcpy(&blockpointer,temp+sizeof(val),sizeof(int));                                                       //edw ginetai overflow tou bucket                 
+          BF_GetBlock(indexDesc,bgd,b);
+          d=BF_Block_GetData(b);
+          //gd++;
+          //memcpy(d,&gd,sizeof(int));
+          BF_GetBlock(indexDesc,blockpointer,b);
+          d=BF_Block_GetData(b);
+          localdepth++;
+          memcpy(d,&localdepth,sizeof(int));
+          freeblock=findfreeblock(indexDesc,bgd);
+          BF_GetBlock(indexDesc,freeblock,b);
+          d=BF_Block_GetData(b);
+          memcpy(d,&localdepth,sizeof(int));
+          redirect(indexDesc, bgd, gd);
+          }
+        }
       }
-    }                                                                                                                               
+    else{
+        continue;}
+                                                                                                                                   
   }                                                                                                                              
 
   return HT_OK;
